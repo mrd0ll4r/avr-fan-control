@@ -95,23 +95,25 @@ void drive_display(uint8_t left_digit, uint8_t right_digit, uint8_t left_digit_e
     uint8_t right_segment_portd = portd_segment_pattern(right_digit);
     uint8_t right_segment_portc = portc_segment_pattern(right_digit);
 
-    if (left_digit_enabled) {
-        PORTD &= ~PORTD_SEGMENT_MASK;
-        PORTC &= ~PORTC_SEGMENT_MASK;
+    // This might seem wrong, but it's on purpose:
+    // Even if the digit is disabled, we still clear the side and wait for 5ms.
+    // Otherwise, the other digit gets 100% PWM, which makes it brighter while this digit is disabled.
 
+    PORTD &= ~PORTD_SEGMENT_MASK;
+    PORTC &= ~PORTC_SEGMENT_MASK;
+    if (left_digit_enabled) {
         PORTD |= (PORTD_SEGMENT_MASK_NO_ENABLE & ~left_segment_portd);
         PORTC |= (SEGMENT_LEFT_ENABLE | (PORTC_SEGMENT_MASK_NO_ENABLE & ~left_segment_portc));
-        _delay_ms(5);
     }
+    _delay_ms(5);
 
+    PORTD &= ~PORTD_SEGMENT_MASK;
+    PORTC &= ~PORTC_SEGMENT_MASK;
     if (right_digit_enabled) {
-        PORTD &= ~PORTD_SEGMENT_MASK;
-        PORTC &= ~PORTC_SEGMENT_MASK;
-
         PORTD |= (SEGMENT_RIGHT_ENABLE | (PORTD_SEGMENT_MASK_NO_ENABLE & ~right_segment_portd));
         PORTC |= (PORTC_SEGMENT_MASK_NO_ENABLE & ~right_segment_portc);
-        _delay_ms(5);
     }
+    _delay_ms(5);
 }
 
 // Sets up outputs for the segment display.
