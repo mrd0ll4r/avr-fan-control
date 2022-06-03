@@ -78,7 +78,6 @@
 #define NUM_AIR_IN_MODES 7
 #define NUM_AIR_OUT_MODES 5
 
-
 // Do not use this.
 static uint8_t relay_pattern_air_in_inverted(uint8_t level) {
     switch (level) {
