@@ -26,4 +26,5 @@ add_executable(fan_control
         src/main.c
         src/twislave.c
         src/twislave.h
-        src/segment.h src/relay.h)
+        src/segment.h
+        src/relay.h)
