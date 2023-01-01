@@ -86,32 +86,38 @@ static uint8_t portc_segment_pattern(uint8_t num) {
     }
 }
 
+void clear_segment_pins() {
+    PORTD &= ~PORTD_SEGMENT_MASK;
+    PORTC &= ~PORTC_SEGMENT_MASK;
+}
+
+void drive_digit(uint8_t digit) {
+    uint8_t portd_digit_pins = portd_segment_pattern(digit);
+    uint8_t portc_digit_pins = portc_segment_pattern(digit);
+
+    PORTD |= (PORTD_SEGMENT_MASK_NO_ENABLE & ~portd_digit_pins);
+    PORTC |= (PORTC_SEGMENT_MASK_NO_ENABLE & ~portc_digit_pins);
+}
+
 // Drives the display with the given digits.
 // The enabled flags can be used to turn off the left or right digit, respectively.
 // Internally, this displays the left and right digit for 5ms each, sequentially.
 void drive_display(uint8_t left_digit, uint8_t right_digit, uint8_t left_digit_enabled, uint8_t right_digit_enabled) {
-    uint8_t left_segment_portd = portd_segment_pattern(left_digit);
-    uint8_t left_segment_portc = portc_segment_pattern(left_digit);
-    uint8_t right_segment_portd = portd_segment_pattern(right_digit);
-    uint8_t right_segment_portc = portc_segment_pattern(right_digit);
-
     // This might seem wrong, but it's on purpose:
     // Even if the digit is disabled, we still clear the side and wait for 5ms.
     // Otherwise, the other digit gets 100% PWM, which makes it brighter while this digit is disabled.
 
-    PORTD &= ~PORTD_SEGMENT_MASK;
-    PORTC &= ~PORTC_SEGMENT_MASK;
+    clear_segment_pins();
     if (left_digit_enabled) {
-        PORTD |= (PORTD_SEGMENT_MASK_NO_ENABLE & ~left_segment_portd);
-        PORTC |= (SEGMENT_LEFT_ENABLE | (PORTC_SEGMENT_MASK_NO_ENABLE & ~left_segment_portc));
+        drive_digit(left_digit);
+        PORTC |= SEGMENT_LEFT_ENABLE;
     }
     _delay_ms(5);
 
-    PORTD &= ~PORTD_SEGMENT_MASK;
-    PORTC &= ~PORTC_SEGMENT_MASK;
+    clear_segment_pins();
     if (right_digit_enabled) {
-        PORTD |= (SEGMENT_RIGHT_ENABLE | (PORTD_SEGMENT_MASK_NO_ENABLE & ~right_segment_portd));
-        PORTC |= (PORTC_SEGMENT_MASK_NO_ENABLE & ~right_segment_portc);
+        drive_digit(right_digit);
+        PORTD |= SEGMENT_RIGHT_ENABLE;
     }
     _delay_ms(5);
 }

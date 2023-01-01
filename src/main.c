@@ -76,13 +76,14 @@ void init_timer() {
     TIMSK |= (1 << OCIE1A);
 }
 
-// The number of digits on the segment, which is also the number of modes that can be changed using the button.
+// The number of digits on the segment.
 #define NUM_DIGITS 2
 // The blinking duration to show a digit is selected, in multiples of 10ms.
 #define TIMER_CNT_THRESH 30
 
 ISR(TIMER1_COMPA_vect) // every 10ms
 {
+    // The current mode for manual control. 0=i2c, 1=left digit, 2=right digit.
     static uint8_t selected_digit = 0;
     static uint8_t down_for_cycles = 0;
     static uint8_t timer_cnt = 0;
@@ -90,6 +91,7 @@ ISR(TIMER1_COMPA_vect) // every 10ms
     // The button is connected to PIND5, but HIGH by default.
     uint8_t is_pressed = !(PIND & (1 << PIND5));
     if (is_pressed) {
+        // Button down
         down_for_cycles++;
 
         if (down_for_cycles == 50) {
@@ -105,6 +107,7 @@ ISR(TIMER1_COMPA_vect) // every 10ms
         }
         if (down_for_cycles > 250) {
             // This will overflow soon, so we reset it to something low now.
+            // We reset to 51 to not trigger a long press.
             down_for_cycles = 51;
         }
     } else {

@@ -1,10 +1,10 @@
-# fan-control
+# avr-fan-control
 
 A project that uses an ATmega8 to control a bunch of relays for our ventilation setup.
 
 ## Setup
 
-Some AVR MCU, eight relays, a two-digit seven-segment display, one button, 
+Some AVR MCU, eight relays, a two-digit seven-segment display, one button.
 Using cmake, everything should be set up correctly.
 
 ## Mode of operation

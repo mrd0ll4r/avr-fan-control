@@ -31,7 +31,7 @@ void init_twi_slave(uint8_t addr) {
     i2c_write_disabled = 0;
 }
 
-// Macros for TWI bitmasks
+// Macros for TWI control register bitmasks
 
 // ACK nach empfangenen Daten senden/ ACK nach gesendeten Daten erwarten
 #define TWCR_ACK TWCR = (1<<TWEN)|(1<<TWIE)|(1<<TWINT)|(1<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|(0<<TWWC);
@@ -40,7 +40,7 @@ void init_twi_slave(uint8_t addr) {
 #define TWCR_NACK TWCR = (1<<TWEN)|(1<<TWIE)|(1<<TWINT)|(0<<TWEA)|(0<<TWSTA)|(0<<TWSTO)|(0<<TWWC);
 
 // Switch to the non-addressed slave mode...
-#define TWCR_RESET TWCR = (1<<TWEN)|(1<<TWIE)|(1<<TWINT)|(1<<TWEA)|(0<<TWSTA)|(1<<TWSTO)|(0<<TWWC);
+#define TWCR_RESET TWCR = (1<<TWEN)|(1<<TWIE)|(1<<TWINT)|(1<<TWEA)|(0<<TWSTA)|(1<<TWSTO)|(0<<TWWC); buffer_addr=0xFF;
 
 // TWI interrupt service routine
 ISR (TWI_vect) {
@@ -48,9 +48,11 @@ ISR (TWI_vect) {
 
     // Check TWI status register
     switch (TW_STATUS) {
-        // Slave Receiver
+        /*
+         * Slave Receiver
+         */
 
-        // 0x60 Slave Receiver, Slave was addressed
+        // 0x60 SLA+W received, ACK returned
         case TW_SR_SLA_ACK:
             // Receive next byte of data, send ACK afterwards
             TWCR_ACK;
@@ -58,7 +60,7 @@ ISR (TWI_vect) {
             buffer_addr = 0xFF;
             break;
 
-            // 0x80 Slave Receiver, a byte of data has been received
+            // 0x80 data received, ACK returned
         case TW_SR_DATA_ACK:
             // Read received data
             data = TWDR;
@@ -77,9 +79,8 @@ ISR (TWI_vect) {
                 // Subsequent byte(s) of this transaction
                 // We can now receive data and use it.
 
-                if (buffer_addr == 0x00) {
-                    // Temporary inconsistency of status register is fine because interrupts are disabled.
-                    // We only allow setting bit 1.
+                if (buffer_addr == 0x0) {
+                    // Bit 2 low = WDT reset occurred -> allow setting only (cleared by mc)
 
                     // Discard read-only bits.
                     data &= 0b00000010;
@@ -92,7 +93,7 @@ ISR (TWI_vect) {
                     }
                 }
 
-                // Increase address for subsequent writes (which are not supported)
+                // Increase address for subsequent writes.
                 buffer_addr++;
 
                 // Receive next byte, ACK afterwards to request next byte
@@ -100,17 +101,24 @@ ISR (TWI_vect) {
             }
             break;
 
+            // 0xA0 stop or repeated start condition received while selected
+        case TW_SR_STOP:
+            TWCR_ACK;
+            break;
 
-            //Slave transmitter
+            /*
+             * Slave Transmitter
+             */
 
-            //0xA8 Slave wurde im Lesemodus adressiert und hat ein ACK zurückgegeben.
+            //0xA8 SLA+R received, ACK returned
         case TW_ST_SLA_ACK:
             // fallthrough
 
-            // 0xB8 Slave Transmitter, data requested
+            // 0xB8 data transmitted, ACK received
         case TW_ST_DATA_ACK:
-            if (buffer_addr == 0xFF) {
-                // This is either a pure read transaction (no Write+Read) or something else went wrong.
+            if (buffer_addr >= i2c_buffer_size) {
+                // This is either a pure read transaction (no Write+Read, buffer_addr=0xFF set via previous TWCR_RESET)
+                // or something else went wrong.
                 // We'll just assume they want to read everything...
                 buffer_addr = 0x00;
             }
@@ -118,6 +126,13 @@ ISR (TWI_vect) {
             if (buffer_addr < i2c_buffer_size) {
                 // Send one byte of data
                 TWDR = i2cdata[buffer_addr];
+
+                if (buffer_addr == (i2c_buffer_size - 1)) {
+                    // Indicate that this is the last byte available, i.e. expect a NACK after we transmitted it.
+                    TWCR_NACK
+                    break;
+                }
+
                 // Auto increment address
                 buffer_addr++;
             } else {
@@ -127,14 +142,14 @@ ISR (TWI_vect) {
             TWCR_ACK;
             break;
 
-        case TW_SR_STOP:
-            TWCR_ACK;
-            break;
-        case TW_ST_DATA_NACK: // 0xC0 Keine Daten mehr gefordert
-        case TW_SR_DATA_NACK: // 0x88
-        case TW_ST_LAST_DATA: // 0xC8  Last data byte in TWDR has been transmitted (TWEA = 0); ACK has been received
+            /*
+             * Error states
+             */
+        case TW_ST_DATA_NACK: // 0xC0 data transmitted, NACK received. No further data requested.
+        case TW_SR_DATA_NACK: // 0x88 data received, NACK returned
+        case TW_ST_LAST_DATA: // 0xC8 last data byte (TWEA=0) transmitted, ACK received
         default:
-            TWCR_RESET;
+        TWCR_RESET;
             break;
     }
 }
